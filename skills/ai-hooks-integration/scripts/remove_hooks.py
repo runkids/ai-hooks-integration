@@ -12,31 +12,13 @@ Behavior:
 """
 
 import argparse
-import json
 from pathlib import Path
 
-TOOL_CONFIG = {
-    "claude": {"hook_key": "PreToolUse", "nested": True},
-    "gemini": {"hook_key": "BeforeTool", "nested": True},
-    "cursor": {"hook_key": "beforeShellExecution", "nested": False},
-}
-
-
-def load_json(path: Path) -> dict:
-    if path.exists():
-        return json.loads(path.read_text())
-    return {}
-
-
-def save_json(path: Path, data: dict, dry_run: bool) -> None:
-    if dry_run:
-        print(f"[dry-run] write {path}")
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+from runtime.tool_config import JSON_TOOLS, get_config, load_json, save_json
 
 
 def filter_hooks(hooks, nested: bool, command: str):
+    """Remove hooks containing the given command string."""
     if not isinstance(hooks, list):
         return []
     kept = []
@@ -64,7 +46,7 @@ def filter_hooks(hooks, nested: bool, command: str):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tool", choices=TOOL_CONFIG.keys(), required=True)
+    ap.add_argument("--tool", choices=JSON_TOOLS, required=True)
     ap.add_argument("--path", required=True)
     ap.add_argument("--command", required=True)
     ap.add_argument("--dry-run", action="store_true", help="Print actions without writing")
@@ -74,11 +56,12 @@ def main() -> None:
     data = load_json(path)
 
     hooks = data.get("hooks", {})
-    cfg = TOOL_CONFIG[args.tool]
+    cfg = get_config(args.tool)
     key = cfg["hook_key"]
+    nested = cfg.get("nested", False)
 
     if key in hooks:
-        hooks[key] = filter_hooks(hooks[key], cfg["nested"], args.command)
+        hooks[key] = filter_hooks(hooks[key], nested, args.command)
         if not hooks[key]:
             hooks.pop(key, None)
 

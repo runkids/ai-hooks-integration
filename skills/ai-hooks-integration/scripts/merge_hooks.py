@@ -15,61 +15,9 @@ Behavior:
 """
 
 import argparse
-import json
 from pathlib import Path
 
-TOOL_CONFIG = {
-    "claude": {
-        "hook_key": "PreToolUse",
-        "default_matcher": "Bash",
-        "nested": True,  # hooks[].hooks[]
-    },
-    "gemini": {
-        "hook_key": "BeforeTool",
-        "default_matcher": "run_shell_command",
-        "nested": True,
-    },
-    "cursor": {
-        "hook_key": "beforeShellExecution",
-        "default_matcher": None,
-        "nested": False,  # hooks[].command
-        "version": 1,
-    },
-    "opencode": {
-        "plugin_template": "opencode_plugin",
-    },
-}
-
-
-def load_json(path: Path) -> dict:
-    if path.exists():
-        return json.loads(path.read_text())
-    return {}
-
-
-def save_json(path: Path, data: dict, dry_run: bool) -> None:
-    if dry_run:
-        print(f"[dry-run] write {path}")
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-
-
-def has_hook(hooks, nested: bool, command: str) -> bool:
-    if not isinstance(hooks, list):
-        return False
-    for h in hooks:
-        if nested:
-            inner = h.get("hooks", []) if isinstance(h, dict) else []
-            for ih in inner:
-                cmd = ih.get("command", "") if isinstance(ih, dict) else ""
-                if command in cmd:
-                    return True
-        else:
-            cmd = h.get("command", "") if isinstance(h, dict) else ""
-            if command in cmd:
-                return True
-    return False
+from runtime.tool_config import TOOL_CONFIG, get_config, load_json, save_json, has_hook
 
 
 OPENCODE_TEMPLATE = '''\
@@ -115,7 +63,7 @@ def main() -> None:
     if not args.command:
         raise SystemExit("--command is required for claude/gemini/cursor")
 
-    cfg = TOOL_CONFIG[args.tool]
+    cfg = get_config(args.tool)
     data = load_json(path)
 
     if args.tool == "cursor" and "version" not in data:
@@ -127,13 +75,13 @@ def main() -> None:
     if hook_key not in hooks or not isinstance(hooks[hook_key], list):
         hooks[hook_key] = []
 
-    if has_hook(hooks[hook_key], cfg["nested"], args.command):
+    if has_hook(hooks[hook_key], cfg.get("nested", False), args.command):
         save_json(path, data, args.dry_run)
         return
 
     matcher = args.matcher if args.matcher is not None else cfg.get("default_matcher")
 
-    if cfg["nested"]:
+    if cfg.get("nested", False):
         hooks[hook_key].append(
             {
                 "matcher": matcher,
