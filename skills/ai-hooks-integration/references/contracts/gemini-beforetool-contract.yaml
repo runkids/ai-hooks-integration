@@ -1,0 +1,11 @@
+name: gemini-beforetool
+input:
+  tool_name: string
+  tool_input:
+    command: string
+output:
+  decision: [allow, deny]
+  reason: string
+  systemMessage: string
+notes:
+  - Deny should stop execution

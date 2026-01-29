@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gemini CLI hooks",
+  "type": "object",
+  "properties": {
+    "hooks": {
+      "type": "object",
+      "properties": {
+        "BeforeTool": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "matcher": {"type": "string"},
+              "hooks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {"type": "string"},
+                    "command": {"type": "string"}
+                  },
+                  "required": ["type", "command"]
+                }
+              }
+            },
+            "required": ["matcher", "hooks"]
+          }
+        }
+      }
+    }
+  }
+}
