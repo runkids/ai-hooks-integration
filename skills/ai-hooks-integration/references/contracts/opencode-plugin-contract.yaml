@@ -1,16 +1,24 @@
 name: opencode-plugin
-version: "2.0"
+version: "2.1"
 runtime: bun
 
 # Critical: Plugin must export a function, not an object
 export_format: |
-  module.exports = async function PluginName(pluginInput) {
+  export const PluginName = async ({ project, client, $, directory, worktree }) => {
     return { /* hooks */ };
   };
 
-plugin_input:
-  app: object          # Application instance
-  directory: string    # Current working directory
+plugin_locations:
+  project: ".opencode/plugins/"
+  global: "~/.config/opencode/plugins/"
+  npm: "opencode.json plugin array"
+
+context:
+  project: object       # Current project info
+  client: object        # OpenCode SDK client
+  $: function           # Bun shell API (for commands)
+  directory: string     # Current working directory
+  worktree: string      # Git worktree path
 
 hooks:
   # Tool execution hooks
@@ -75,13 +83,23 @@ hooks:
     output:
       decision: string    # "allow" | "deny" | "ask"
 
-  # Event hook
+  # Event hook (passive listener for all events)
   event:
     input:
-      event: object       # Event payload
+      event: object       # Event payload with type property
+    event_types:
+      - session.created
+      - session.idle
+      - session.compacted
+      - session.deleted
+      - session.updated
+      - file.edited
+      - file.watcher.updated
+      - command.executed
     behavior:
       - passive listener
       - cannot block
+      - use for notifications, logging
 
   # Config hook
   config:

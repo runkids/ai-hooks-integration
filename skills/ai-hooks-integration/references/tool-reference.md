@@ -261,35 +261,63 @@ CLAUDE_PROJECT_DIR   # Compatibility alias
 
 **Critical**: Plugin must export a **function**, not an object.
 
+### Plugin Locations
+
+- Project: `.opencode/plugins/`
+- Global: `~/.config/opencode/plugins/`
+- npm: Add to `opencode.json` `plugin` array
+
 ### Events
 
 | Event | Description |
 |-------|-------------|
 | tool.execute.before | Before tool execution |
 | tool.execute.after | After tool execution |
+| command.executed | After command runs |
+| file.edited | File was edited |
+| file.watcher.updated | File watcher triggered |
+| session.created | Session started |
+| session.idle | Session became idle |
+| session.compacted | Context compressed |
 | permission.ask | Permission requested |
 | chat.message | Chat message sent |
 | event | All events (passive) |
 
+### Context Object
+
+```js
+export const MyPlugin = async ({ project, client, $, directory, worktree }) => {
+  // project: current project info
+  // client: OpenCode SDK client
+  // $: Bun shell API (for running commands)
+  // directory: working directory
+  // worktree: git worktree path
+  return { /* hooks */ };
+};
+```
+
 ### Plugin Template
 
 ```js
-module.exports = async function MyPlugin(pluginInput) {
-  const cwd = pluginInput?.directory || process.cwd();
-
+export const MyPlugin = async ({ directory, $ }) => {
   return {
     "tool.execute.before": async (input, output) => {
       // input.tool, input.sessionID, input.callID
       // output.args (mutable)
-      const cmd = output?.args?.command || "";
-      if (cmd.includes("rm -rf /")) {
-        throw new Error("Blocked");  // Block = throw
+      if (input.tool === "read" && output.args.filePath?.includes(".env")) {
+        throw new Error("Blocked: .env files");  // throw to block
       }
     },
 
     "tool.execute.after": async (input, output) => {
       // output.title, output.output, output.metadata
       console.log(`Completed: ${input.tool}`);
+    },
+
+    "event": async ({ event }) => {
+      if (event.type === "session.idle") {
+        await $`osascript -e 'display notification "Done!"'`;
+      }
     },
   };
 };
@@ -304,8 +332,10 @@ module.exports = async function MyPlugin(pluginInput) {
   "command.execute.before": async (input, output) => {},
   "chat.message": async (input, output) => {},
   "chat.params": async (input, output) => {},
+  "chat.headers": async (input, output) => {},  // add custom headers
   "permission.ask": async (input, output) => {},
   "event": async ({ event }) => {},
+  "config": async (config) => {},  // modify config
 }
 ```
 
@@ -366,9 +396,9 @@ scripts/install_cli_wrapper.py --cli gh --hook "/path/to/hook"
 |-------|--------|--------|--------|----------|
 | Tool name | `tool_name` | `tool_name` | - | `input.tool` |
 | Command | `tool_input.command` | `tool_input.command` | `command` | `output.args.command` |
-| CWD | `cwd` | `$GEMINI_CWD` (env) | `cwd` | `pluginInput.directory` |
+| CWD | `cwd` | `$GEMINI_CWD` (env) | `cwd` | `ctx.directory` |
 | Session | `session_id` | `session_id` / `$GEMINI_SESSION_ID` | - | `input.sessionID` |
-| Project | `cwd` | `$GEMINI_PROJECT_DIR` (env) | - | `pluginInput.directory` |
+| Project | `cwd` | `$GEMINI_PROJECT_DIR` (env) | - | `ctx.worktree` |
 
 ### Output Fields
 
