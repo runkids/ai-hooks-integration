@@ -64,11 +64,15 @@ scripts/remove_cli_wrapper.py --cli gh
 | Tool | Config | Hook Key | Has Hooks API |
 |------|--------|----------|---------------|
 | Claude | `~/.claude/settings.json` | PreToolUse, PostToolUse, Stop | Yes |
-| Gemini CLI | `~/.gemini/settings.json` | BeforeTool, AfterTool, Stop | Yes |
+| Gemini CLI | `~/.gemini/settings.json` | BeforeTool, AfterTool, SessionStart +8 | Yes |
 | Cursor | `~/.cursor/hooks.json` | beforeShellExecution, afterFileEdit | Yes |
 | OpenCode | `~/.config/opencode/plugins/*.js` | tool.execute.before/after | Yes (plugin) |
 | Gemini IDE | N/A | N/A | **No** |
 | gh, aws, etc. | N/A | N/A | **No** → Use wrapper |
+
+### Gemini CLI Events (11 total)
+
+SessionStart, SessionEnd, BeforeAgent, AfterAgent, BeforeModel, AfterModel, BeforeToolSelection, BeforeTool, AfterTool, PreCompress, Notification
 
 ## References
 

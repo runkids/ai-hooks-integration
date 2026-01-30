@@ -308,9 +308,47 @@ echo '{"continue":true}'
 
 Add context before operations.
 
+### Session Start Context (Gemini)
+
+**When**: SessionStart - fires at startup, resume, clear
+
+```bash
+#!/bin/bash
+# session-context.sh - Inject project context at session start
+# stdout MUST be valid JSON only, use stderr for debug
+
+PROJECT_DIR="${GEMINI_PROJECT_DIR:-$PWD}"
+cd "$PROJECT_DIR" 2>/dev/null
+
+GIT_BRANCH=$(git branch --show-current 2>/dev/null || echo "N/A")
+NODE_VER=$(node --version 2>/dev/null || echo "N/A")
+
+CONTEXT="Branch: $GIT_BRANCH | Node: $NODE_VER"
+
+# Escape for JSON
+ESCAPED=$(echo "$CONTEXT" | jq -Rs .)
+echo "{\"systemMessage\":$ESCAPED}"
+```
+
+**Config (Gemini)**:
+```json
+{
+  "hooks": {
+    "SessionStart": [{
+      "hooks": [{
+        "name": "session-context",
+        "type": "command",
+        "command": "$GEMINI_PROJECT_DIR/.gemini/hooks/session-context.sh",
+        "timeout": 3000
+      }]
+    }]
+  }
+}
+```
+
 ### Add Git Status to Prompts
 
-**When**: UserPromptSubmit / chat.message / BeforeTool
+**When**: UserPromptSubmit / chat.message / BeforeTool / BeforeAgent
 
 ```bash
 #!/bin/bash
@@ -394,6 +432,68 @@ git add -A
 git commit -m "AI agent: auto-commit changes"
 
 echo '{"continue":true,"systemMessage":"Changes committed"}'
+```
+
+---
+
+## Gemini-Specific Patterns
+
+Patterns using Gemini CLI's extended hooks (11 events).
+
+### Mock Model Response (BeforeModel)
+
+**When**: BeforeModel - useful for testing without API calls
+
+```bash
+#!/bin/bash
+# mock-model.sh
+
+read -r INPUT
+
+if [ -n "$GEMINI_MOCK_MODE" ]; then
+  echo '{"decision":"mock","mock_response":{"text":"[MOCKED] Test response"}}'
+else
+  echo '{"decision":"allow"}'
+fi
+```
+
+### Redact Sensitive Output (AfterModel)
+
+**When**: AfterModel - filter sensitive info from model responses
+
+```bash
+#!/bin/bash
+# redact-secrets.sh
+
+read -r INPUT
+RESPONSE=$(echo "$INPUT" | jq -r '.model_response.text // ""')
+
+# Redact API keys, tokens
+REDACTED=$(echo "$RESPONSE" | sed -E 's/[A-Za-z0-9]{32,}/[REDACTED]/g')
+
+if [ "$RESPONSE" != "$REDACTED" ]; then
+  echo "{\"redacted_response\":{\"text\":\"$REDACTED\"}}"
+else
+  echo '{"decision":"allow"}'
+fi
+```
+
+### Session Cleanup (SessionEnd)
+
+**When**: SessionEnd - cleanup resources, save state
+
+```bash
+#!/bin/bash
+# session-cleanup.sh
+
+LOG_DIR="$HOME/.gemini/logs"
+mkdir -p "$LOG_DIR"
+echo "Session ended: $(date)" >> "$LOG_DIR/sessions.log"
+
+# Cleanup temp files
+rm -rf /tmp/gemini-session-* 2>/dev/null
+
+echo '{}'
 ```
 
 ---
