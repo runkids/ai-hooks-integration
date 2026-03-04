@@ -5,7 +5,10 @@ description: |
   Use when: (1) installing/removing hooks, (2) creating OpenCode plugins, (3) setting up auto-formatting,
   testing, notifications, security policies, (4) wrapping CLI tools without hooks API.
   Triggers on: "add hook", "install hook", "hook integration", "PreToolUse", "PostToolUse",
-  "beforeShellExecution", "auto-format", "notify on complete", "wrap CLI", "intercept command".
+  "PermissionRequest", "PostToolUseFailure", "SubagentStart", "SubagentStop", "TeammateIdle",
+  "TaskCompleted", "ConfigChange", "WorktreeCreate", "WorktreeRemove", "PreCompact",
+  "beforeShellExecution", "auto-format", "notify on complete", "wrap CLI", "intercept command",
+  "HTTP hook", "prompt hook", "agent hook", "async hook".
 ---
 
 # AI Hooks Integration
@@ -61,14 +64,20 @@ scripts/remove_cli_wrapper.py --cli gh
 
 ## Tool Support
 
-| Tool | Config | Hook Key | Has Hooks API |
-|------|--------|----------|---------------|
-| Claude | `~/.claude/settings.json` | PreToolUse, PostToolUse, Stop | Yes |
-| Gemini CLI | `~/.gemini/settings.json` | BeforeTool, AfterTool, SessionStart +8 | Yes |
-| Cursor | `~/.cursor/hooks.json` | beforeShellExecution, afterFileEdit | Yes |
-| OpenCode | `~/.config/opencode/plugins/*.js` | tool.execute.before/after | Yes (plugin) |
-| Gemini IDE | N/A | N/A | **No** |
-| gh, aws, etc. | N/A | N/A | **No** → Use wrapper |
+| Tool | Config | Events | Hook Types | Has Hooks API |
+|------|--------|--------|------------|---------------|
+| Claude | `~/.claude/settings.json` | 17 events | command, http, prompt, agent | Yes |
+| Gemini CLI | `~/.gemini/settings.json` | 11 events | command | Yes |
+| Cursor | `~/.cursor/hooks.json` | 3 events | command | Yes |
+| OpenCode | `~/.config/opencode/plugins/*.js` | 10 events | ES module | Yes (plugin) |
+| Gemini IDE | N/A | N/A | N/A | **No** |
+| gh, aws, etc. | N/A | N/A | N/A | **No** → Use wrapper |
+
+### Claude Code Events (17 total)
+
+SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, PostToolUseFailure,
+Notification, SubagentStart, SubagentStop, Stop, TeammateIdle, TaskCompleted, ConfigChange,
+WorktreeCreate, WorktreeRemove, PreCompact, SessionEnd
 
 ### Gemini CLI Events (11 total)
 
