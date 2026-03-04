@@ -498,6 +498,198 @@ echo '{}'
 
 ---
 
+## Claude Code Advanced Patterns
+
+New patterns using Claude Code's expanded hook system (17 events, 4 hook types).
+
+### HTTP Hook: External Validation Service
+
+**When**: PreToolUse - validate commands against a remote policy engine
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Bash",
+      "hooks": [{
+        "type": "http",
+        "url": "http://localhost:8080/hooks/validate",
+        "headers": {"Authorization": "Bearer $POLICY_TOKEN"},
+        "allowedEnvVars": ["POLICY_TOKEN"],
+        "timeout": 10
+      }]
+    }]
+  }
+}
+```
+
+### Prompt Hook: AI-Powered Stop Gate
+
+**When**: Stop - LLM evaluates if all tasks are truly complete
+
+```json
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "prompt",
+        "prompt": "Evaluate if Claude should stop: $ARGUMENTS. Check: 1) All tasks complete 2) No errors 3) No follow-up needed. Respond {\"ok\":true} or {\"ok\":false,\"reason\":\"...\"}",
+        "timeout": 30
+      }]
+    }]
+  }
+}
+```
+
+### Agent Hook: Verify Tests Pass Before Stop
+
+**When**: Stop - subagent runs tests and inspects results
+
+```json
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "agent",
+        "prompt": "Run the test suite and verify all tests pass before allowing Claude to stop. $ARGUMENTS",
+        "timeout": 120
+      }]
+    }]
+  }
+}
+```
+
+### Async Hook: Background Test Runner
+
+**When**: PostToolUse - run tests in background after file changes
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Write|Edit",
+      "hooks": [{
+        "type": "command",
+        "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run-tests-async.sh",
+        "async": true,
+        "timeout": 300
+      }]
+    }]
+  }
+}
+```
+
+### TaskCompleted: Enforce Quality Gates
+
+**When**: TaskCompleted - prevent task completion without passing tests
+
+```bash
+#!/bin/bash
+# task-quality-gate.sh
+INPUT=$(cat)
+TASK_SUBJECT=$(echo "$INPUT" | jq -r '.task_subject')
+
+if ! npm test 2>&1; then
+  echo "Tests not passing. Fix before completing: $TASK_SUBJECT" >&2
+  exit 2
+fi
+exit 0
+```
+
+### ConfigChange: Audit Settings Changes
+
+**When**: ConfigChange - log all config modifications
+
+```bash
+#!/bin/bash
+# audit-config.sh
+INPUT=$(cat)
+SOURCE=$(echo "$INPUT" | jq -r '.source')
+FILE=$(echo "$INPUT" | jq -r '.file_path // "N/A"')
+echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Config changed: $SOURCE ($FILE)" >> ~/.ai-audit/config.log
+
+# Block non-admin changes to project settings
+if [ "$SOURCE" = "project_settings" ] && [ ! -f ".claude/admin-approved" ]; then
+  echo '{"decision": "block", "reason": "Project settings require admin approval"}'
+fi
+```
+
+### PermissionRequest: Auto-Approve Safe Commands
+
+**When**: PermissionRequest - approve known-safe commands automatically
+
+```bash
+#!/bin/bash
+# auto-approve.sh
+INPUT=$(cat)
+TOOL=$(echo "$INPUT" | jq -r '.tool_name')
+CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
+
+# Auto-approve safe read-only commands
+if [ "$TOOL" = "Bash" ] && echo "$CMD" | grep -qE '^(ls|cat|echo|git status|npm test|go test)'; then
+  jq -n '{hookSpecificOutput:{hookEventName:"PermissionRequest",decision:{behavior:"allow"}}}'
+  exit 0
+fi
+
+# Let user decide for everything else
+exit 0
+```
+
+### SessionStart: Persist Environment Variables
+
+**When**: SessionStart - set up environment for entire session
+
+```bash
+#!/bin/bash
+# setup-env.sh
+if [ -n "$CLAUDE_ENV_FILE" ]; then
+  echo 'export NODE_ENV=development' >> "$CLAUDE_ENV_FILE"
+  echo 'export PATH="$PATH:./node_modules/.bin"' >> "$CLAUDE_ENV_FILE"
+fi
+exit 0
+```
+
+### MCP Tool Hooks
+
+**When**: PreToolUse/PostToolUse - monitor or control MCP server tools
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__memory__.*",
+        "hooks": [{"type": "command", "command": "echo 'Memory op' >> ~/mcp.log"}]
+      },
+      {
+        "matcher": "mcp__.*__write.*",
+        "hooks": [{"type": "command", "command": "/path/to/validate-mcp-write.py"}]
+      }
+    ]
+  }
+}
+```
+
+### Skill/Agent Frontmatter Hooks
+
+Hooks scoped to a skill's lifetime:
+
+```yaml
+---
+name: secure-operations
+description: Perform operations with security checks
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "./scripts/security-check.sh"
+          once: true
+---
+```
+
+---
+
 ## Cross-Tool Implementation
 
 ### OpenCode Plugin Example
